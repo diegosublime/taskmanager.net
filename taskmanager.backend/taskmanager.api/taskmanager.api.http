@@ -1,0 +1,6 @@
+@taskmanager.api_HostAddress = http://localhost:5173
+
+GET {{taskmanager.api_HostAddress}}/api/lists?userId=user2
+Accept: application/json 
+
+###
