@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace taskmanager.api
@@ -8,10 +9,12 @@ namespace taskmanager.api
     public class DataRepository
     {
         private readonly IAmazonDynamoDB _amazonDynamoDB;
+        private readonly DBSettings _dbSettings;
 
-        public DataRepository(IAmazonDynamoDB dynamoDB)
+        public DataRepository(IAmazonDynamoDB dynamoDB, IOptions<DBSettings> optionsDbSettings)
         {
             _amazonDynamoDB = dynamoDB;
+            _dbSettings = optionsDbSettings.Value;
         }
 
         public async Task<string> GetTableName()
@@ -24,7 +27,7 @@ namespace taskmanager.api
         {
             var response = await _amazonDynamoDB.GetItemAsync(new GetItemRequest
             {
-                TableName = "TaskLists",
+                TableName = _dbSettings.TableName,
                 Key = new Dictionary<string, AttributeValue>
                 {
                     ["PK"] = new AttributeValue { S = $"LIST#{listId}" },
@@ -44,7 +47,7 @@ namespace taskmanager.api
         {
             var response = await _amazonDynamoDB.QueryAsync(new QueryRequest
             {
-                TableName = "TaskLists",
+                TableName = _dbSettings.TableName,
                 KeyConditionExpression = "PK = :pk AND begins_with(SK, :skPrefix)", // this filters during data gathering, very efficient cause it works with the indexes
                 //FilterExpression = "Entity = :entity", this filters after the data is obtained not efficient and not recommended
                 ExpressionAttributeValues = new Dictionary<string, AttributeValue>

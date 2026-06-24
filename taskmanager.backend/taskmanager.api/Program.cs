@@ -1,6 +1,5 @@
 using Amazon.DynamoDBv2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Configuration.UserSecrets;
 using taskmanager.api;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,11 +8,20 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+//Setup application settings
+builder.Services.Configure<DBSettings>(builder.Configuration.GetSection(DBSettings.KeyName));  //Get from appsettings.json (injection)
+
+var AuthSettingsConfig = builder.Configuration.GetSection(AuthSettings.KeyName).Get<AuthSettings>(); //Get from user secrets.json (no injection)
+if (AuthSettingsConfig is null)
+{
+    throw new NullReferenceException("not loading application settings");
+}
+
 //Configure cors so that frontend can use this backend
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("taskmanager.angular",
-        policy => 
+        policy =>
         {
             policy.WithOrigins("http://localhost:4200")
             .AllowAnyHeader()
@@ -24,21 +32,21 @@ builder.Services.AddCors(options =>
 //Configure jwt validation, this will validate issuer, lifetime and everything needed for the incoming JWT
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options => 
+    .AddJwtBearer(options =>
     {
-        options.Authority = "***"; 
+        options.Authority = AuthSettingsConfig.Issuer;
         options.TokenValidationParameters = new()
         {
             ValidateIssuer = true,
-            ValidIssuer = "***",
-            ValidateAudience = false, 
+            ValidIssuer = AuthSettingsConfig.Issuer,
+            ValidateAudience = false,
             ValidateLifetime = true
         };
     });
 
 builder.Services.AddAuthorizationBuilder()
     //Cognito does not send audience, so this is a work around to still validate the audience as client id
-    .AddPolicy("ValidateAudiencePolicy", policy => policy.RequireClaim("client_id", "***"))
+    .AddPolicy("ValidateAudiencePolicy", policy => policy.RequireClaim("client_id", AuthSettingsConfig.ClientId))
     .AddPolicy("ValidateReadScope", policy => policy.RequireClaim("scope", "taskmanagerAPI/read-task"));
 
 builder.Services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient()); //using default credentials in C:\Users\youruser\.aws - no need to pass credentials here
@@ -81,10 +89,10 @@ app.MapGet("api/lists/{listId}", async (string listId, DataRepository dataReposi
 
     return Results.Ok(listResponse);
 })
-.WithName("GetListById"); 
+.WithName("GetListById");
 //.RequireAuthorization("ValidateAudiencePolicy");
 
-app.MapGet("api/testdynamo", async (DataRepository dataRepository) => 
+app.MapGet("api/testdynamo", async (DataRepository dataRepository) =>
 {
     var tableNames = await dataRepository.GetTableName();
     return tableNames;
