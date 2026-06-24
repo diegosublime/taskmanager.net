@@ -1,5 +1,7 @@
+using Amazon.DynamoDBv2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration.UserSecrets;
+using taskmanager.api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +41,10 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("ValidateAudiencePolicy", policy => policy.RequireClaim("client_id", "***"))
     .AddPolicy("ValidateReadScope", policy => policy.RequireClaim("scope", "taskmanagerAPI/read-task"));
 
+builder.Services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient()); //using default credentials in C:\Users\youruser\.aws - no need to pass credentials here
+
+builder.Services.AddScoped<DataRepository>();
+
 var app = builder.Build();
 
 app.UseCors("taskmanager.angular");
@@ -53,25 +59,40 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
- 
 
-app.MapGet("api/lists", (string userId) =>
+
+app.MapGet("api/lists", async (string userId, DataRepository dataRepository, CancellationToken cancellationToken) =>
 {
-    var lists = new List<ListTask>() 
-    { 
-        new ListTask("1", "user1", "Work the garden", "This is task 1, belongs to user 1"),
-        new ListTask("2", "user1", "Feed the cat", "This is task 2, belongs to user 1"),
-        new ListTask("3", "user2", "Clean the house", "This is task 3, belongs to user 2")
-    };
+    var listResponse = await dataRepository.GetListsByUserAsync(userId, cancellationToken);
 
-    var listsResponse = lists.Where(l => l.UserId == userId).ToList();
-
-    return listsResponse;
+    return Results.Ok(listResponse);
 })
-.WithName("GetLists")
-.RequireAuthorization("ValidateAudiencePolicy");
+.WithName("GetListsbyUserId");
+//.RequireAuthorization("ValidateAudiencePolicy");
+
+app.MapGet("api/lists/{listId}", async (string listId, DataRepository dataRepository, CancellationToken cancellationToken) =>
+{
+    var listResponse = await dataRepository.GetListByIdAsync(listId, cancellationToken);
+
+    if (listResponse == null)
+    {
+        return Results.NotFound();
+    }
+
+    return Results.Ok(listResponse);
+})
+.WithName("GetListById"); 
+//.RequireAuthorization("ValidateAudiencePolicy");
+
+app.MapGet("api/testdynamo", async (DataRepository dataRepository) => 
+{
+    var tableNames = await dataRepository.GetTableName();
+    return tableNames;
+});
+
+
 
 app.Run();
 
-internal record ListTask(string Id, string UserId, string Name, string Description) { }
+public record ListTask(string Id, string UserId, string Name, string Description) { }
 

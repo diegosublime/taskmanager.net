@@ -1,6 +1,16 @@
 @taskmanager.api_HostAddress = http://localhost:5173
 
-GET {{taskmanager.api_HostAddress}}/api/lists?userId=user2
+GET {{taskmanager.api_HostAddress}}/api/lists?userId=U111
 Accept: application/json 
 
 ###
+
+GET {{taskmanager.api_HostAddress}}/api/lists/L111
+Accept: application/json
+
+###
+
+GET {{taskmanager.api_HostAddress}}/api/testdynamo
+Accept: application/json
+
+
