@@ -2,21 +2,26 @@ using Amazon.DynamoDBv2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using taskmanager.api;
 
+
+#region Builder 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+ 
+#region AppSettings setup
+    builder.Services.Configure<DBSettings>(builder.Configuration.GetSection(DBSettings.KeyName));  //Get from appsettings.json (injection)
 
-//Setup application settings
-builder.Services.Configure<DBSettings>(builder.Configuration.GetSection(DBSettings.KeyName));  //Get from appsettings.json (injection)
+    var AuthSettingsConfig = builder.Configuration.GetSection(AuthSettings.KeyName).Get<AuthSettings>(); //Get from user secrets.json (no injection)
+    if (AuthSettingsConfig is null)
+    {
+        throw new NullReferenceException("not loading application settings");
+    }
+#endregion
 
-var AuthSettingsConfig = builder.Configuration.GetSection(AuthSettings.KeyName).Get<AuthSettings>(); //Get from user secrets.json (no injection)
-if (AuthSettingsConfig is null)
-{
-    throw new NullReferenceException("not loading application settings");
-}
-
+#region CORS configuration
 //Configure cors so that frontend can use this backend
 builder.Services.AddCors(options =>
 {
@@ -28,30 +33,39 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod();
         });
 });
+#endregion
 
+#region Auth configuration
 //Configure jwt validation, this will validate issuer, lifetime and everything needed for the incoming JWT
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = AuthSettingsConfig.Issuer;
-        options.TokenValidationParameters = new()
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
         {
-            ValidateIssuer = true,
-            ValidIssuer = AuthSettingsConfig.Issuer,
-            ValidateAudience = false,
-            ValidateLifetime = true
-        };
-    });
+            options.Authority = AuthSettingsConfig.Issuer;
+            options.TokenValidationParameters = new()
+            {
+                ValidateIssuer = true,
+                ValidIssuer = AuthSettingsConfig.Issuer,
+                ValidateAudience = false,
+                ValidateLifetime = true
+            };
+        });
 
-builder.Services.AddAuthorizationBuilder()
-    //Cognito does not send audience, so this is a work around to still validate the audience as client id
-    .AddPolicy("ValidateAudiencePolicy", policy => policy.RequireClaim("client_id", AuthSettingsConfig.ClientId))
-    .AddPolicy("ValidateReadScope", policy => policy.RequireClaim("scope", "taskmanagerAPI/read-task"));
+    builder.Services.AddAuthorizationBuilder()
+        //Cognito does not send audience, so this is a work around to still validate the audience as client id
+        .AddPolicy("ValidateAudiencePolicy", policy => policy.RequireClaim("client_id", AuthSettingsConfig.ClientId))
+        .AddPolicy("ValidateReadScope", policy => policy.RequireClaim("scope", "taskmanagerAPI/read-task"));
+#endregion
 
-builder.Services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient()); //using default credentials in C:\Users\youruser\.aws - no need to pass credentials here
+#region Services injection
+    builder.Services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient()); //using default credentials in C:\Users\youruser\.aws - no need to pass credentials here 
+    builder.Services.AddScoped<DataRepository>();
+#endregion
 
-builder.Services.AddScoped<DataRepository>();
+
+#endregion
+
+#region Built app
 
 var app = builder.Build();
 
@@ -68,39 +82,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-
-app.MapGet("api/lists", async (string userId, DataRepository dataRepository, CancellationToken cancellationToken) =>
-{
-    var listResponse = await dataRepository.GetListsByUserAsync(userId, cancellationToken);
-
-    return Results.Ok(listResponse);
-})
-.WithName("GetListsbyUserId");
-//.RequireAuthorization("ValidateAudiencePolicy");
-
-app.MapGet("api/lists/{listId}", async (string listId, DataRepository dataRepository, CancellationToken cancellationToken) =>
-{
-    var listResponse = await dataRepository.GetListByIdAsync(listId, cancellationToken);
-
-    if (listResponse == null)
-    {
-        return Results.NotFound();
-    }
-
-    return Results.Ok(listResponse);
-})
-.WithName("GetListById");
-//.RequireAuthorization("ValidateAudiencePolicy");
-
-app.MapGet("api/testdynamo", async (DataRepository dataRepository) =>
-{
-    var tableNames = await dataRepository.GetTableName();
-    return tableNames;
-});
-
-
+//Add endpoints
+app.UseListTaskEndpoints();
 
 app.Run();
 
-public record ListTask(string Id, string UserId, string Name, string Description) { }
-
+#endregion 
