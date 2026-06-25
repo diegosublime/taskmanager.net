@@ -73,10 +73,10 @@ namespace taskmanager.api
             return mappedResult;
         }
 
-        public async Task<string> CreateListTask(ListTask newListTask, string userId, CancellationToken cancellationToken) 
-        { 
+        public async Task<string> CreateListTask(ListTask newListTask, string userId, CancellationToken cancellationToken)
+        {
             var dbListTaskByUser = newListTask.ToDBListTask(
-                PkForListTaskByUserId(userId), 
+                PkForListTaskByUserId(userId),
                 SkForListTaskByUserId(newListTask.Id)
                 );
 
@@ -85,9 +85,9 @@ namespace taskmanager.api
                 SkForListTaskByListId()
                 );
 
-            var response = await _amazonDynamoDB.TransactWriteItemsAsync(new TransactWriteItemsRequest 
+            var response = await _amazonDynamoDB.TransactWriteItemsAsync(new TransactWriteItemsRequest
             {
-                TransactItems = 
+                TransactItems =
                 [
                     new TransactWriteItem
                     {
@@ -110,14 +110,16 @@ namespace taskmanager.api
                 ]
             }, cancellationToken);
 
-            return newListTask.Id; 
+            return newListTask.Id;
         }
-         
-        public async Task<string> DeleteListTask(string listId, string userId, CancellationToken cancellationToken)
-        { 
-            var response = await _amazonDynamoDB.TransactWriteItemsAsync(new TransactWriteItemsRequest
+
+        public async Task<string?> DeleteListTask(string listId, string userId, CancellationToken cancellationToken)
+        {
+            try
             {
-                TransactItems =
+                var response = await _amazonDynamoDB.TransactWriteItemsAsync(new TransactWriteItemsRequest
+                {
+                    TransactItems =
                 [
                     new TransactWriteItem
                     {
@@ -144,18 +146,30 @@ namespace taskmanager.api
                              },
                              ConditionExpression = "attribute_exists(PK) AND attribute_exists(SK)"
                          }
-                    } 
+                    }
                 ]
-            }, cancellationToken);
+                }, cancellationToken);
 
-            return listId;
-        } 
+                return listId;
+            }
+            catch (TransactionCanceledException ex)
+            {
+                //If PK or SK don't exist, return empty
+                var isPKSKNonExistant = ex.CancellationReasons.Any(c => c.Code == "ConditionalCheckFailed");
+                if (isPKSKNonExistant)
+                    return null;
+
+                //any other reason, dont swallow exception
+                throw;
+            }
+
+        }
     }
 
 
     public static class DBMapper
-    { 
-        public static Dictionary<string, AttributeValue> ToDBListTask(this ListTask listTask, string pK, string sK) 
+    {
+        public static Dictionary<string, AttributeValue> ToDBListTask(this ListTask listTask, string pK, string sK)
         {
             var dbListTask = new Dictionary<string, AttributeValue>
             {
@@ -165,10 +179,10 @@ namespace taskmanager.api
                 ["Entity"] = new AttributeValue { S = "List" },
                 ["Name"] = new AttributeValue { S = listTask.Name },
                 ["Purpose"] = new AttributeValue { S = listTask.Purpose },
-                ["UserId"] = new AttributeValue { S = listTask.UserId } 
+                ["UserId"] = new AttributeValue { S = listTask.UserId }
             };
             return dbListTask;
         }
-         
+
     }
 }

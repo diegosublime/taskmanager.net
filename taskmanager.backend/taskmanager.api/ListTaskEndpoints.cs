@@ -41,12 +41,13 @@ namespace taskmanager.api
                 return Results.Created();
             })
             .WithName("CreateList");
-            //.RequireAuthorization("ValidateAudiencePolicy");;
+            //.RequireAuthorization("ValidateAudiencePolicy");
 
-            app.MapDelete("api/Lists/{listId}",async(string listId,string userId, DataRepository dataRepository,CancellationToken cancellationToken) => 
+            app.MapDelete("api/Lists/{listId}",async(string listId,string userId, TaskService taskService ,CancellationToken cancellationToken) => 
             {
-                var response = await dataRepository.DeleteListTask(listId, userId, cancellationToken);
-                return Results.NoContent();
+                var deleteListResult = await taskService.DeleteListTask(listId, userId, cancellationToken);
+                
+                return deleteListResult.ToAPIResults();
             });
         }
     }

@@ -60,6 +60,12 @@ builder.Services
 #region Services injection
     builder.Services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient()); //using default credentials in C:\Users\youruser\.aws - no need to pass credentials here 
     builder.Services.AddScoped<DataRepository>();
+    builder.Services.AddScoped<TaskService>();
+#endregion
+
+#region Global error handling
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 #endregion
 
 
@@ -68,7 +74,7 @@ builder.Services
 #region Built app
 
 var app = builder.Build();
-
+ 
 app.UseCors("taskmanager.angular");
 
 app.UseAuthentication();
@@ -81,6 +87,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseExceptionHandler();
 
 //Add endpoints
 app.UseListTaskEndpoints();
