@@ -1,6 +1,6 @@
 @taskmanager.api_HostAddress = http://localhost:5173
 
-GET {{taskmanager.api_HostAddress}}/api/lists?userId=U111
+GET {{taskmanager.api_HostAddress}}/api/lists?userId=U112
 Accept: application/json 
 
 ###
@@ -14,3 +14,21 @@ GET {{taskmanager.api_HostAddress}}/api/testdynamo
 Accept: application/json
 
 
+###
+
+POST {{taskmanager.api_HostAddress}}/api/lists
+Content-Type: application/json
+Accept: application/json
+ 
+{
+  "id": "L122",
+  "userId": "U112",
+  "name": "User 2 List 2",
+  "description": "Buying list 2",
+  "purpose": "Shopping"
+}
+
+###
+
+DELETE {{taskmanager.api_HostAddress}}/api/lists/L122?userId=U112
+Accept: application/json
