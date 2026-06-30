@@ -1,6 +1,8 @@
-﻿namespace taskmanager.api
+﻿using MediatR;
+
+namespace taskmanager.api
 {
-    public abstract record DomainEvent
+    public abstract record DomainEvent: INotification
     {
         public DateTime TimeOfEventCreation { get; set; } = DateTime.UtcNow;
 

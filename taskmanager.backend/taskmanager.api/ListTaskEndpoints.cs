@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using Amazon.DynamoDBv2.Model;
+using System.Data;
 
 namespace taskmanager.api
 {
@@ -46,9 +47,7 @@ namespace taskmanager.api
                     listTaskRequest.Purpose);
 
                 var listResponse = await dataRepository.CreateListTask(newListTask, newListTask.UserId, cancellationToken);
-                
-                //Dispatch domain events (pending to deside custom implementation vs MediatR)
-
+                 
                 return Results.Created();
             })
             .WithName("CreateList");

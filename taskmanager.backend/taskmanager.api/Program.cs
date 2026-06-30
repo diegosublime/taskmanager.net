@@ -57,8 +57,16 @@ builder.Services
         .AddPolicy("ValidateReadScope", policy => policy.RequireClaim("scope", "taskmanagerAPI/read-task"));
 #endregion
 
+#region MediatR configuration
+builder.Services.AddMediatR(config => 
+{
+    //TODO: move to different assembly
+    config.RegisterServicesFromAssembly(typeof(DomainEvent).Assembly);
+}); 
+#endregion
+
 #region Services injection
-    builder.Services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient()); //using default credentials in C:\Users\youruser\.aws - no need to pass credentials here 
+builder.Services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient()); //using default credentials in C:\Users\youruser\.aws - no need to pass credentials here 
     builder.Services.AddScoped<DataRepository>();
     builder.Services.AddScoped<TaskService>();
 #endregion

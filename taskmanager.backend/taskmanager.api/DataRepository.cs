@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
+using MediatR;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 
@@ -10,11 +11,13 @@ namespace taskmanager.api
     {
         private readonly IAmazonDynamoDB _amazonDynamoDB;
         private readonly DBSettings _dbSettings;
+        private readonly IPublisher _eventPublisher;
 
-        public DataRepository(IAmazonDynamoDB dynamoDB, IOptions<DBSettings> optionsDbSettings)
+        public DataRepository(IAmazonDynamoDB dynamoDB, IOptions<DBSettings> optionsDbSettings, IPublisher eventPublisher)
         {
             _amazonDynamoDB = dynamoDB;
             _dbSettings = optionsDbSettings.Value;
+            _eventPublisher = eventPublisher;
         }
 
         private static string PkForListTaskByUserId(string userId) => $"USER#{userId}";
@@ -109,6 +112,11 @@ namespace taskmanager.api
                     }
                 ]
             }, cancellationToken);
+
+            foreach (var domainEvent in newListTask.GetDomainEvents()) 
+            {
+                await _eventPublisher.Publish(domainEvent, cancellationToken); 
+            }
 
             return newListTask.Id;
         }

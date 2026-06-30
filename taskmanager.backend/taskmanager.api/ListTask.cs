@@ -6,7 +6,8 @@ namespace taskmanager.api
     //the domain events logic in other entities
     public class ListTask
     {
-        private ListTask(string id, string userId, string name, string description, string purpose)
+        //TODO: public just for json serializer 
+        public ListTask(string id, string userId, string name, string description, string purpose)
         {
             Id = id;
             UserId = userId;
