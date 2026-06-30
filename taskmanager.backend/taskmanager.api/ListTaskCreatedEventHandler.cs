@@ -11,12 +11,21 @@ namespace taskmanager.api
         }
     }
 
-    public class ListTaskCreatedLogEventHandler : INotificationHandler<ListTaskCreatedEvent>
+    public class ListTaskCreatedPublishIntegrationEventHandler : INotificationHandler<ListTaskCreatedEvent>
     {
-        //SendEmail when taskList is created
-        public Task Handle(ListTaskCreatedEvent notification, CancellationToken cancellationToken)
+        private IIntegrationEventBus IntegrationEventBus { get; set; }
+
+        public ListTaskCreatedPublishIntegrationEventHandler(IIntegrationEventBus integrationEventBus)
         {
-            return Task.CompletedTask;
+            IntegrationEventBus = integrationEventBus;
         }
-    }
+         
+        //Trigger integration event to communicate with other modules
+        public async Task Handle(ListTaskCreatedEvent notification, CancellationToken cancellationToken)
+        {
+            //TODO: Outbox pattern pending
+            await IntegrationEventBus.PublishAsync<ListTaskCreatedIntegrationEvent>(new ListTaskCreatedIntegrationEvent(notification.listTaskId), cancellationToken);
+            
+        }
+    }   
 }
