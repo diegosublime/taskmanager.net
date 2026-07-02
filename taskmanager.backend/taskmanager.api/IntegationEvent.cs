@@ -66,7 +66,37 @@ namespace taskmanager.api
         SolaceSystems.Solclient.Messaging.IFlow SolaceFlow { get; }
         void Disconnect();
     }
-
+    // TODO: Implement automatic provisioning of queues and queue subscriptions.
+    //
+    // In Solace, publishers publish events to Topics.
+    // Topics can fan out messages to multiple Queues through queue subscriptions.
+    //
+    // Each consuming module should typically own its own Queue, so that:
+    // - Multiple modules can independently process the same event.
+    // - Messages are isolated per module.
+    // - A slow or failing module does not affect other consumers.
+    //
+    // A Topic represents an event type (for example: tasks/task-created).
+    //
+    // Each module queue should subscribe only to the Topics (integration events)
+    // that the module is interested in processing.
+    //
+    // Example:
+    //
+    // Topic:
+    //   tasks/task-created
+    //
+    // Queues:
+    //   notifications-module-queue
+    //   reporting-module-queue
+    //
+    // Queue subscriptions:
+    //   notifications-module-queue -> tasks/task-created
+    //   reporting-module-queue     -> tasks/task-created
+    //
+    // Result:
+    //   Publishing a single tasks/task-created event causes Solace to place
+    //   a copy of the message into both queues.
     public sealed class SolaceBusConnection : ISolaceBusConnection
     {
         private SolaceSystems.Solclient.Messaging.IContext? _solaceContext;
@@ -88,7 +118,7 @@ namespace taskmanager.api
             {
                 throw new InvalidOperationException($"Solace connection failed with code: '{connectionStatus}'");
             }
-
+             
             _solaceQueue = ContextFactory.Instance.CreateQueue("taskPOC_IntegrationEvents_Queue");
 
             // Set queue permissions to "consume" and access-type to "exclusive"
