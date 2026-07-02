@@ -1,19 +1,18 @@
-﻿using Microsoft.Extensions.Options;
+﻿using MediatR;
+using Microsoft.Extensions.Options;
 using SolaceSystems.Solclient.Messaging;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using static System.Collections.Specialized.BitVector32;
 using static taskmanager.api.SolaceListener;
 namespace taskmanager.api
 {
-    public interface IIntegationEvent
-    {
-        string TopicName { get; } 
-    }
+    
 
     public interface IIntegrationEventBus
     {
-        Task PublishAsync<T>(T integrationEvent, CancellationToken cancellationToken) where T : IIntegationEvent;
+        Task PublishAsync<T>(T integrationEvent, CancellationToken cancellationToken) where T : IIntegrationEvent;
     }
      
     public class SolaceIntegrationEventBus : IIntegrationEventBus
@@ -25,12 +24,12 @@ namespace taskmanager.api
             _session = session;
         }
 
-        public Task PublishAsync<T>(T integrationEvent, CancellationToken cancellationToken) where T : IIntegationEvent
+        public Task PublishAsync<T>(T integrationEvent, CancellationToken cancellationToken) where T : IIntegrationEvent
         {  
             var message = ContextFactory.Instance.CreateMessage();
 
             message.BinaryAttachment = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(integrationEvent));
-            message.Destination = ContextFactory.Instance.CreateTopic(integrationEvent.TopicName);
+            message.Destination = ContextFactory.Instance.CreateTopic(integrationEvent.IntegrationEventMessageTypeName);
 
             _session.Send(message);
 
@@ -38,10 +37,11 @@ namespace taskmanager.api
         }
     }
 
-    public record ListTaskCreatedIntegrationEvent(string ListTaskId) : IIntegationEvent
+    public record ListTaskCreatedIntegrationEvent(string ListTaskId) : IIntegrationEvent
     {
         public string ListTaskId { get; } = ListTaskId;
-        public string TopicName { get => "TasksModule.ListTask.Created"; }
+        public string TopicName { get => "TasksModule/ListTask/Created"; }
+        public string IntegrationEventMessageTypeName { get => nameof(ListTaskCreatedIntegrationEvent); } 
     }
 
 
@@ -83,6 +83,9 @@ namespace taskmanager.api
             {
                 throw new InvalidOperationException($"Solace connection failed with code: '{connectionStatus}'");
             }
+
+            _solaceSession.Subscribe(ContextFactory.Instance.CreateTopic("TasksModule/>"), true);
+             
         }
         
          
@@ -134,11 +137,16 @@ namespace taskmanager.api
      
     public class SolaceListener : IHostedService
     {
-        private readonly ISolaceBusConnection _solaceConnection; 
+        private readonly ISolaceBusConnection _solaceConnection;
+        private readonly Dictionary<string, Type> _integrationEventMessageTypes;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
-        public SolaceListener(ISolaceBusConnection solaceConnection)
+        public SolaceListener(ISolaceBusConnection solaceConnection, IServiceScopeFactory serviceScopeFactory)
         {
-            _solaceConnection = solaceConnection;
+            _solaceConnection = solaceConnection; 
+            _serviceScopeFactory = serviceScopeFactory;
+            _integrationEventMessageTypes = typeof(Program).Assembly.DefinedTypes.
+               Where(type => typeof(IIntegrationEvent).IsAssignableFrom(type)).ToDictionary(type => type.Name, type => type.AsType());
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -157,9 +165,46 @@ namespace taskmanager.api
 
         private void OnMessageReceived(object? source, MessageEventArgs args) 
         {
+            using IMessage message = args.Message;
+
+            var stringMessage = Encoding.ASCII.GetString(message.BinaryAttachment);
+
+            var integrationEvent = JsonSerializer.Deserialize<IIntegrationEvent>(stringMessage);
+
+            if (integrationEvent is null) 
+            {
+                return;
+            } 
+
+            var integrationEventMessageType = _integrationEventMessageTypes.GetValueOrDefault(integrationEvent.IntegrationEventMessageTypeName);
+
+            if (integrationEventMessageType is null)
+            {
+                return;
+            }
+
+            var integrationEventMessage = JsonSerializer.Deserialize(stringMessage, integrationEventMessageType);
+
+            if (integrationEventMessage is null)
+            {
+                return;
+            }
+
+            //Mediator send might be async, so a channel implementation here would be a good idea
+            using var scope = _serviceScopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+            mediator.Send(integrationEventMessage);
         }
 
         
+    }
+
+
+    public interface IIntegrationEvent 
+    {
+        string TopicName { get; }
+        string IntegrationEventMessageTypeName { get; }
     }
 
 

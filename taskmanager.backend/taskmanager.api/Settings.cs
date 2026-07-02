@@ -17,6 +17,11 @@
 
     public class SolaceSettings
     {
+        public const string KeyName = "Solace";
 
+        public string Host { get; set; } = default!;
+        public string VPNName { get; set; } = default!;
+        public string UserName { get; set; } = default!;
+        public string Password { get; set; } = default!;
     }
 }

@@ -21,6 +21,12 @@ builder.Services.AddOpenApi();
     {
         throw new NullReferenceException("not loading application settings");
     }
+
+    var SolaceSettingsConfig = builder.Configuration.GetSection(SolaceSettings.KeyName).Get<SolaceSettings>(); //Get from user secrets.json (no injection)
+    if (SolaceSettingsConfig is null)
+    {
+        throw new NullReferenceException("not loading application settings");
+    }
 #endregion
 
 #region CORS configuration
@@ -63,7 +69,7 @@ builder.Services
 builder.Services.AddMediatR(config => 
 {
     //TODO: move to different assembly
-    config.RegisterServicesFromAssembly(typeof(DomainEvent).Assembly);
+    config.RegisterServicesFromAssembly(typeof(Program).Assembly);
 });
 #endregion
 
@@ -77,7 +83,15 @@ builder.Services.AddSingleton<ISolaceBusConnection>(serviceProvider =>
 
     return new SolaceBusConnection(
         new ContextProperties(),
-        new SessionProperties());
+        new SessionProperties() 
+        { 
+            Host = SolaceSettingsConfig.Host, 
+            VPNName = SolaceSettingsConfig.VPNName, 
+            UserName = SolaceSettingsConfig.UserName, 
+            Password = SolaceSettingsConfig.Password,
+            SSLValidateCertificate = false, //only for local dev
+            SSLValidateCertificateDate = false //only for local dev
+        });
 
 });
 #endregion
