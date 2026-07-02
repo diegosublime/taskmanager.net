@@ -14,4 +14,9 @@
 
         public string TableName { get; set; } = default!; 
     }
+
+    public class SolaceSettings
+    {
+
+    }
 }

@@ -1,5 +1,7 @@
 using Amazon.DynamoDBv2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
+using SolaceSystems.Solclient.Messaging;
 using taskmanager.api;
 
 
@@ -62,13 +64,32 @@ builder.Services.AddMediatR(config =>
 {
     //TODO: move to different assembly
     config.RegisterServicesFromAssembly(typeof(DomainEvent).Assembly);
-}); 
+});
+#endregion
+
+#region Solace configuration
+builder.Services.AddSingleton<ISolaceBusConnection>(serviceProvider => 
+{
+    //TODO: pass settings from secrets to connect to solace
+
+    //This is required before solace starts a session and a context
+    ContextFactory.Instance.Init(new ContextFactoryProperties()); 
+
+    return new SolaceBusConnection(
+        new ContextProperties(),
+        new SessionProperties());
+
+});
 #endregion
 
 #region Services injection
 builder.Services.AddSingleton<IAmazonDynamoDB>(_ => new AmazonDynamoDBClient()); //using default credentials in C:\Users\youruser\.aws - no need to pass credentials here 
     builder.Services.AddScoped<DataRepository>();
     builder.Services.AddScoped<TaskService>();
+#endregion
+
+#region Hosted background service injection
+builder.Services.AddHostedService<SolaceListener>();
 #endregion
 
 #region Global error handling
